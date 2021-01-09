@@ -1,0 +1,3 @@
+importance = TRUE will convert that model to TRUE randomforest class.
+confusion matrix needs factor variables.
+in decisionTreePred, type class is needed. So, the output will transform into factor variable.
