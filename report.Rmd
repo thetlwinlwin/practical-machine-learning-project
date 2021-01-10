@@ -2,7 +2,10 @@
 title: "Manners Prediction"
 author: "ThetLwinLwin"
 date: "1/8/2021"
-output: html_document
+output:
+  html_document: default
+  word_document: default
+  keep_md: true
 ---
 
 ```{r setup, include=FALSE}
@@ -20,7 +23,7 @@ As the emerge of the hand wear bands or devices, it is now possible to collect l
 ```{r}
 if(!file.exists('./data/pml-training.csv') && !file.exists('./data/pml-testing.csv')){
   download.file(url='https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv',destfile = './data/pml-training.csv')
-  download.file(url='https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv',destfile = './data/pml-testing.csv')
+  download.file(url='https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv',destfile = './data/pml-testing.csv')
   training = read.csv('./data/pml-training.csv')
   testing = read.csv('./data/pml-testing.csv')
 }else{
@@ -64,7 +67,6 @@ Next, near zero variance will be checked and removed.
 ```{r}
 nzv <- nearZeroVar(filteredtraining)
 finalTrain <- filteredtraining[,-nzv]
-finalTest <- filteredtesting[,-nzv]
 dim(finalTrain)
 ```
 Near Zero Variance reduces feature from 93 to 59. 
@@ -77,6 +79,7 @@ The data are now split into **train** and **test** dataset.
 inTrain <- createDataPartition(y=finalTrain$classe, p =0.75,list=FALSE)
 train <- finalTrain[inTrain,]
 test <- finalTrain[-inTrain,]
+set.seed(8834)
 ```
 
 ### Model_1
@@ -86,31 +89,22 @@ The first go-to model for classification problem is decision tree.
 ```{r}
 decisionTree <- rpart(classe~.,data=train, method = 'class')
 decisionTreePred <- predict(decisionTree,newdata = test,type = 'class')
-
-#convert outcome to be factor variable.
-test$classe = as.factor(test$classe)
-confusion1<- confusionMatrix(decisionTreePred,test$classe)
-print(confusion1$table)
-```
-Basically, this model can predict almost correct. It may be due to several reasons. The first reason is overfitting. The second one is that the outcome is somehow included in features. To make it clear, tree was plotted.
-
-```{r,fig.align = "center"}
 fancyRpartPlot(decisionTree)
 ```
+Basically, this model can predict almost correct as it solely relies on feature **X**. Variable Importance will be checked as follow.
 
-The tree graph indicates that prediction is governed by X. So, the features are needed to be filtered and model is rebuilt.
+```{r}
+decisionTree$variable.importance
+```
+So, the features are needed to be filtered and model is rebuilt.
 
 ```{r}
 train <- train[,-(1:5)]
 test <- test[,-(1:5)]
-testing <- testing[,-(1:5)]
 decisionTree <- rpart(classe~.,data=train, method = 'class')
-decisionTreePred <- predict(decisionTree,newdata = test,type = 'class')
-
-confusion1<- confusionMatrix(decisionTreePred,test$classe)
-print(paste0('Accuracy is ',round(confusion1$overall['Accuracy'],3)))
+decisionTree$variable.importance
 ```
-The Accuracy is far less than the previous decision tree model. 
+Now, there is no overwhelming features in model. The accuracy will be checked in model decision.
 
 ### Model_2
 
@@ -127,12 +121,11 @@ randForest <- train(classe~.,
                     trControl=trControl,
                     importance=TRUE
                     )
-randForestPred <- predict(randForest,newdata = test)
-confusion2 <- confusionMatrix(randForestPred,test$classe)
-confusion2$table
-print(paste0('Accuracy is ',round(confusion2$overall['Accuracy'],3)))
+
+randForest
 ```
-Again, the accuracy is nearly perfect. There is a chance that this is due to overfitting the model. When validating with testing data set, the accuracy will be less than this above result.
+
+Again, the accuracy is nearly perfect. There is a chance that this is due to overfitting the model. The clear result will be seen after confusion matrix is built in model decision.
 
 ```{r}
 plot(randForest, main='effect of number of predictors on Accuracy')
@@ -141,28 +134,34 @@ plot(randForest, main='effect of number of predictors on Accuracy')
 plot(randForest$finalModel, main = 'Model error')
 ```
 
-This model is pretty reasonable as far as we concerned. Model accuracy is excellent and use less features. In real life, training other models is suggested.
-
 ## Model Decision
 
-Model will be decided based on the testing data set as we loaded at the beginning.
+Model will be decided based on the test dataset.
 
 ```{r}
-#convert testing data set outcome.
-testing$classe <- as.factor(testing$classe)
-model1Pred <- predict(decisionTree,newdata = testing,type='class')
-model1ConfuMat <- confusionMatrix(model1Pred,testing$classe)
+#Decision Tree
+test$classe <- as.factor(test$classe)
+decisionTreePred <- predict(decisionTree,newdata = test,type = 'class')
+confusion1 <- confusionMatrix(decisionTreePred,test$classe)
+confusion1$table
 
-model2Pred <- predict(randForest,newdata = testing)
-model2ConfuMat <- confusionMatrix(model2Pred,testing$classe)
-
-model2ConfuMat$table
-
-print(paste0('The accuracy of Decision Tree Model is ',
-             model1ConfuMat$overall['Accuracy']))
-
-print(paste0('The accuracy of Random Forest Model is ',
-             model2ConfuMat$overall['Accuracy']))
+print(paste0('Accuracy is ',round(confusion1$overall['Accuracy'],3)))
 ```
 
-The aim of this project is to build a accurate prediction model on common incorrect gestures during barbell lifts based on several variables collected by accelerometers. For Random Forest model, the accuracy increases in validation dataset. This model perform best for this classification. Other classification models with boosting or bagging will likely be able to achieve high results. 
+```{r}
+#Random Forest
+randForestPred <- predict(randForest,newdata = test)
+confusion2 <- confusionMatrix(randForestPred,test$classe)
+confusion2$table
+
+print(paste0('Accuracy is ',confusion2$overall['Accuracy']))
+```
+
+The aim of this project is to build a accurate prediction model on common incorrect gestures during barbell lifts based on several variables collected by accelerometers. For Random Forest model, the accuracy increases in validation dataset. This model perform best for this classification. Other classification models with boosting or bagging will likely be able to achieve high results.
+
+Now, using the second model to predict the test.
+
+```{r}
+predictresult <- predict(randForest,newdata = testing)
+predictresult
+```
